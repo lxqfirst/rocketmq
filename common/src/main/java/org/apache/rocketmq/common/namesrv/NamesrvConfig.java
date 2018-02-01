@@ -21,6 +21,7 @@
 package org.apache.rocketmq.common.namesrv;
 
 import java.io.File;
+
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.slf4j.Logger;
@@ -29,8 +30,19 @@ import org.slf4j.LoggerFactory;
 public class NamesrvConfig {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
+    /**
+     * RocketMQ安装目录
+     */
     private String rocketmqHome = "/Users/lxq/myWorkspace/rocketmq/distribution";
+
+    /**
+     * KV配置持久化地址
+     */
     private String kvConfigPath = System.getProperty("user.home") + File.separator + "namesrv" + File.separator + "kvConfig.json";
+
+    /**
+     * 持久化配置路径
+     */
     private String configStorePath = System.getProperty("user.home") + File.separator + "namesrv" + File.separator + "namesrv.properties";
     private String productEnvName = "center";
     private boolean clusterTest = false;

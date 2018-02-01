@@ -24,7 +24,6 @@ import org.apache.rocketmq.srvutil.ShutdownHookThread;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Properties;
 import java.util.concurrent.Callable;
 
 /**
@@ -33,9 +32,6 @@ import java.util.concurrent.Callable;
 public class NamesrvStartup {
     private static final Logger log = LoggerFactory.getLogger(NamesrvStartup.class);
 
-
-    public static Properties properties = null;
-
     public static void main(String[] args) {
         main0(args);
     }
@@ -43,21 +39,24 @@ public class NamesrvStartup {
     public static NamesrvController main0(String[] args) {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
         try {
+            //1.初始化NamesrvConfig和NettyServerConfig
             final NamesrvConfig namesrvConfig = new NamesrvConfig();
             final NettyServerConfig nettyServerConfig = new NettyServerConfig();
+
+            //2.Name Server的端口定为9876
             nettyServerConfig.setListenPort(9876);
 
-
+            //3.初始化NamesrvController, 该类是Name Server的主要控制类
             final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig);
 
-            controller.getConfiguration().registerConfig(properties);
-
+            //4.初始化controller
             boolean initResult = controller.initialize();
             if (!initResult) {
                 controller.shutdown();
                 System.exit(-3);
             }
 
+            //5.注册ShutdownHook,当jvm关闭时要关闭controller
             Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
@@ -66,6 +65,7 @@ public class NamesrvStartup {
                 }
             }));
 
+            //6.启动netty服务
             controller.start();
 
             System.out.println("The Name Server boot success. serializeType=" + RemotingCommand.getSerializeTypeConfigInThisServer());

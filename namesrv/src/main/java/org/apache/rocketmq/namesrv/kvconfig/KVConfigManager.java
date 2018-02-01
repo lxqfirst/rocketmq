@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.protocol.body.KVTable;
@@ -36,12 +37,15 @@ public class KVConfigManager {
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final HashMap<String/* Namespace */, HashMap<String/* Key */, String/* Value */>> configTable =
-        new HashMap<String, HashMap<String, String>>();
+            new HashMap<String, HashMap<String, String>>();
 
     public KVConfigManager(NamesrvController namesrvController) {
         this.namesrvController = namesrvController;
     }
 
+    /**
+     * 启动的时候Load配置
+     */
     public void load() {
         String content = null;
         try {
@@ -51,7 +55,7 @@ public class KVConfigManager {
         }
         if (content != null) {
             KVConfigSerializeWrapper kvConfigSerializeWrapper =
-                KVConfigSerializeWrapper.fromJson(content, KVConfigSerializeWrapper.class);
+                    KVConfigSerializeWrapper.fromJson(content, KVConfigSerializeWrapper.class);
             if (null != kvConfigSerializeWrapper) {
                 this.configTable.putAll(kvConfigSerializeWrapper.getConfigTable());
                 log.info("load KV config table OK");
@@ -59,6 +63,14 @@ public class KVConfigManager {
         }
     }
 
+
+    /**
+     * 同步更新某个namespace下面的配置（只是一个JVM内）
+     *
+     * @param namespace
+     * @param key
+     * @param value
+     */
     public void putKVConfig(final String namespace, final String key, final String value) {
         try {
             this.lock.writeLock().lockInterruptibly();
@@ -73,10 +85,10 @@ public class KVConfigManager {
                 final String prev = kvTable.put(key, value);
                 if (null != prev) {
                     log.info("putKVConfig update config item, Namespace: {} Key: {} Value: {}",
-                        namespace, key, value);
+                            namespace, key, value);
                 } else {
                     log.info("putKVConfig create new config item, Namespace: {} Key: {} Value: {}",
-                        namespace, key, value);
+                            namespace, key, value);
                 }
             } finally {
                 this.lock.writeLock().unlock();
@@ -88,6 +100,9 @@ public class KVConfigManager {
         this.persist();
     }
 
+    /**
+     * 同步配置持久化到文件中
+     */
     public void persist() {
         try {
             this.lock.readLock().lockInterruptibly();
@@ -102,7 +117,7 @@ public class KVConfigManager {
                 }
             } catch (IOException e) {
                 log.error("persist kvconfig Exception, "
-                    + this.namesrvController.getNamesrvConfig().getKvConfigPath(), e);
+                        + this.namesrvController.getNamesrvConfig().getKvConfigPath(), e);
             } finally {
                 this.lock.readLock().unlock();
             }
@@ -112,6 +127,12 @@ public class KVConfigManager {
 
     }
 
+    /**
+     * 同步删除某个namespace下的配置
+     *
+     * @param namespace
+     * @param key
+     */
     public void deleteKVConfig(final String namespace, final String key) {
         try {
             this.lock.writeLock().lockInterruptibly();
@@ -120,7 +141,7 @@ public class KVConfigManager {
                 if (null != kvTable) {
                     String value = kvTable.remove(key);
                     log.info("deleteKVConfig delete a config item, Namespace: {} Key: {} Value: {}",
-                        namespace, key, value);
+                            namespace, key, value);
                 }
             } finally {
                 this.lock.writeLock().unlock();
@@ -132,6 +153,12 @@ public class KVConfigManager {
         this.persist();
     }
 
+    /**
+     * 同步返回某个namespace下的所有序列化后的配置
+     *
+     * @param namespace
+     * @return
+     */
     public byte[] getKVListByNamespace(final String namespace) {
         try {
             this.lock.readLock().lockInterruptibly();
@@ -152,6 +179,13 @@ public class KVConfigManager {
         return null;
     }
 
+    /**
+     * 同步获取某个namespace下某个key对应的配置
+     *
+     * @param namespace
+     * @param key
+     * @return
+     */
     public String getKVConfig(final String namespace, final String key) {
         try {
             this.lock.readLock().lockInterruptibly();
@@ -170,6 +204,9 @@ public class KVConfigManager {
         return null;
     }
 
+    /**
+     * 同步打印所有配置
+     */
     public void printAllPeriodically() {
         try {
             this.lock.readLock().lockInterruptibly();
@@ -179,14 +216,14 @@ public class KVConfigManager {
                 {
                     log.info("configTable SIZE: {}", this.configTable.size());
                     Iterator<Entry<String, HashMap<String, String>>> it =
-                        this.configTable.entrySet().iterator();
+                            this.configTable.entrySet().iterator();
                     while (it.hasNext()) {
                         Entry<String, HashMap<String, String>> next = it.next();
                         Iterator<Entry<String, String>> itSub = next.getValue().entrySet().iterator();
                         while (itSub.hasNext()) {
                             Entry<String, String> nextSub = itSub.next();
                             log.info("configTable NS: {} Key: {} Value: {}", next.getKey(), nextSub.getKey(),
-                                nextSub.getValue());
+                                    nextSub.getValue());
                         }
                     }
                 }
