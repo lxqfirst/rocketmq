@@ -59,15 +59,19 @@ public class NamesrvController {
     public NamesrvController(NamesrvConfig namesrvConfig, NettyServerConfig nettyServerConfig) {
         this.namesrvConfig = namesrvConfig;
         this.nettyServerConfig = nettyServerConfig;
+        //kv配置
         this.kvConfigManager = new KVConfigManager(this);
+        //路由信息配置，管理这broker，remoteAddress，topic，cluster等很多路由关系
         this.routeInfoManager = new RouteInfoManager();
+        //管理RouteInfoManager的broker路由信息
         this.brokerHousekeepingService = new BrokerHousekeepingService(this);
+        //配置信息
         this.configuration = new Configuration(log, this.namesrvConfig, this.nettyServerConfig);
         this.configuration.setStorePathFromConfig(this.namesrvConfig, "configStorePath");
     }
 
     public boolean initialize() {
-
+        // 从kvConfigPath加载文件内容至KVConfigManager
         this.kvConfigManager.load();
 
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
@@ -77,6 +81,10 @@ public class NamesrvController {
 
         this.registerProcessor();
 
+        /**
+         * 延迟5秒启动、每10秒执行一次的定时任务
+         * 用于扫描不存活的Broker
+         */
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -85,6 +93,10 @@ public class NamesrvController {
             }
         }, 5, 10, TimeUnit.SECONDS);
 
+        /**
+         * 延迟1分钟启动、每10分钟执行一次的定时任务
+         * 作用式打印出kvConfig配置
+         */
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
