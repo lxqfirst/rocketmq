@@ -39,13 +39,23 @@ import org.slf4j.LoggerFactory;
 public class NamesrvController {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
+    /**
+     * namesrv配置文件类
+     */
     private final NamesrvConfig namesrvConfig;
 
+    /**
+     * netty配置文件类设置监听接口及发送接收信息用于与其他模块的远程通信
+     */
     private final NettyServerConfig nettyServerConfig;
 
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl(
             "NSScheduledThread"));
     private final KVConfigManager kvConfigManager;
+
+    /**
+     * namesrv管理所有broker的路由及topic配置信息类
+     */
     private final RouteInfoManager routeInfoManager;
 
     private RemotingServer remotingServer;
@@ -67,6 +77,7 @@ public class NamesrvController {
         this.brokerHousekeepingService = new BrokerHousekeepingService(this);
         //配置信息
         this.configuration = new Configuration(log, this.namesrvConfig, this.nettyServerConfig);
+
         this.configuration.setStorePathFromConfig(this.namesrvConfig, "configStorePath");
     }
 
@@ -79,6 +90,9 @@ public class NamesrvController {
         this.remotingExecutor =
                 Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
 
+        /**
+         * 注册默认的Command处理器
+         */
         this.registerProcessor();
 
         /**
@@ -108,13 +122,15 @@ public class NamesrvController {
         return true;
     }
 
+    /**
+     * 注册默认的请求处理类（对应处理RemotingCommand）
+     */
     private void registerProcessor() {
         if (namesrvConfig.isClusterTest()) {
-
             this.remotingServer.registerDefaultProcessor(new ClusterTestRequestProcessor(this, namesrvConfig.getProductEnvName()),
                     this.remotingExecutor);
         } else {
-
+            //DefaultRequestProcessor：对netty的封装（封装通信交互协议），管理和启动netty网络通信框架
             this.remotingServer.registerDefaultProcessor(new DefaultRequestProcessor(this), this.remotingExecutor);
         }
     }

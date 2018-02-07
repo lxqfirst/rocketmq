@@ -126,7 +126,8 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         });
 
         /**
-         * 拥有三个selector的eventLoopGroup
+         *
+         * 工作线程，用selector这个名字由歧义啊！！
          *
          * 创建固定数量的线程组，默认3个
          * 如果是Linux平台，并且useEpollNativeSelector属性为true时使用EpollEventLoopGroup，否则使用NioEventLoopGroup
@@ -191,26 +192,52 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                 });
 
         ServerBootstrap childHandler =
-                this.serverBootstrap.group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
+                this.serverBootstrap
+                        // group方法设置NIO线程组
+                        .group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
+                        //设置channel
                         .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
+                        //服务端接收客户端连接数上限
                         .option(ChannelOption.SO_BACKLOG, 1024)
+                        //允许公用本地地址和端口
                         .option(ChannelOption.SO_REUSEADDR, true)
+                        //不允许长连接
                         .option(ChannelOption.SO_KEEPALIVE, false)
+                        //禁止使用Nagle算法，使用于小数据即时传输
                         .childOption(ChannelOption.TCP_NODELAY, true)
+                        //设置发送缓冲区大小
                         .childOption(ChannelOption.SO_SNDBUF, nettyServerConfig.getServerSocketSndBufSize())
+                        //设置接缓冲区大小
                         .childOption(ChannelOption.SO_RCVBUF, nettyServerConfig.getServerSocketRcvBufSize())
+                        //设置Netty监听的端口
                         .localAddress(new InetSocketAddress(this.nettyServerConfig.getListenPort()))
+                        //绑定I/O事件的处理类
                         .childHandler(new ChannelInitializer<SocketChannel>() {
                             @Override
                             public void initChannel(SocketChannel ch) throws Exception {
                                 ch.pipeline()
                                         .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME,
                                                 new HandshakeHandler(TlsSystemConfig.tlsMode))
-                                        .addLast(defaultEventExecutorGroup,
+                                        .addLast(
+                                                //执行任务的线程池
+                                                defaultEventExecutorGroup,
+                                                //编码器
                                                 new NettyEncoder(),
+                                                /**
+                                                 * 解码器，基于LengthFieldBasedFrameDecoder
+                                                 * 支持自动的TCP粘包和板报处理，只需要给出标识消息长度的字段偏移量和消息长度自身所占的字节数
+                                                 */
                                                 new NettyDecoder(),
+                                                /**
+                                                 * 心跳检测，默认120秒
+                                                 * 当客户端连接空闲指定时间之后，触发userEventTriggered()方法
+                                                 * userEventTriggered()方法在NettyConnetManageHandler类中实现，具体行为就是关闭空闲的通道
+                                                 *
+                                                 */
                                                 new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),
+                                                // Netty连接管理Handler
                                                 new NettyConnectManageHandler(),
+                                                // 具体的业务处理Handler
                                                 new NettyServerHandler()
                                         );
                             }
@@ -221,6 +248,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
 
         try {
+            //启动netty
             ChannelFuture sync = this.serverBootstrap.bind().sync();
             InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
             this.port = addr.getPort();
@@ -228,6 +256,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             throw new RuntimeException("this.serverBootstrap.bind().sync() InterruptedException", e1);
         }
 
+        //启动线程，处理netty的几种event
         if (this.channelEventListener != null) {
             this.nettyEventExecutor.start();
         }
